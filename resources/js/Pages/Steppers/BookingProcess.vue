@@ -1,5 +1,5 @@
 <script setup>
-import {reactive, ref} from "vue";
+import {reactive, ref, watch} from "vue";
 import axios from "axios";
 import {useToast} from "primevue";
 
@@ -13,6 +13,10 @@ const bookingForm = reactive({
     option: null,
     day: null,
     start_time: null
+})
+
+watch(bookingForm, () => {
+    console.log(bookingForm)
 })
 
 const emit = defineEmits('booked')
@@ -50,6 +54,8 @@ const getAvailableTimeSlots = async () => {
     try {
         if (!bookingForm.option) throw new Error('Выберите продолжительность!')
         if (!bookingForm.day) throw new Error('Выберите день!')
+
+        // bookingForm.day = bookingForm.day.toISOString().split('T')[0]
 
         const resp = await axios.get('/service/available-time-slots', {
             params: {
@@ -132,6 +138,7 @@ const saveBooking = async () => {
                         :maxDate="maxDate"
                         :manualInput="false"
                         dateFormat="yy-mm-dd"
+                        updateModelType="string"
                     />
                 </div>
                 <div class="flex pt-6 justify-between">

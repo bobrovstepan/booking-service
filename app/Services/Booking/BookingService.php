@@ -18,6 +18,7 @@ class BookingService
 
     public function store(array $data)
     {
+        //current: $data['start_time'] === '2025-10-18 11:00:00';
         //TODO: remake via EXCLUDE constraint (PostgreSql)
         DB::transaction(function () use ($data) {
             $startTime = Carbon::createFromTimeString($data['start_time']);
@@ -42,12 +43,8 @@ class BookingService
     private function checkOverlapping($data, $startTime, $endTime)
     {
         return Booking::where('service_id', $data['option']['service_id'])
-            ->where(function ($query) use ($startTime, $endTime) {
-                $query->where(function($q) use ($startTime, $endTime) {
-                    $q->where('start_time', '<', $endTime)
-                        ->where('end_time', '>', $startTime);
-                });
-            })
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
             ->lockForUpdate()
             ->exists();
     }

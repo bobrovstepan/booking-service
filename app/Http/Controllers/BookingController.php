@@ -13,7 +13,7 @@ class BookingController extends Controller
 
     public function store(Request $request)
     {
-        $this->bookingService->store($request->all()['data']);
+        $this->bookingService->store($request->input('data'));
 
         return response()->json([
             'success' => true,

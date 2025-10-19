@@ -2,54 +2,81 @@
 
 namespace App\Services\Booking;
 
+use App\Exceptions\SlotAlreadyBookedException;
 use App\Models\Booking;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class BookingService
 {
-    private const BUFFER = 30;
-    private int $serviceId;
+    private const BUFFER_MINUTES = 30;
 
-    public function __construct($serviceId = 0)
+    private ?int $serviceId;
+
+    private ?int $optionId;
+
+    private ?int $durationMinutes;
+
+    private ?Carbon $start;
+
+    private ?Carbon $end;
+
+    private ?string $userName;
+
+    private ?string $phoneNumber;
+
+    public function __construct(array $data)
     {
-        $this->serviceId = $serviceId;
+        $this->serviceId = $data['option']['service_id'] ?? null;
+        $this->optionId = $data['option']['id'] ?? null;
+        $this->durationMinutes = $data['option']['duration_minutes'] ?? null;
+
+        $this->start = isset($data['start_time']) ? Carbon::createFromTimeString($data['start_time']) : null;
+        $this->end = $this->start?->copy()
+            ->addMinutes(intval($this->durationMinutes) + self::BUFFER_MINUTES);
+
+        $this->userName = $data['user']['name'] ?? null;
+        $this->phoneNumber = $data['user']['phone_number'] ?? null;
     }
 
-    public function store(array $data)
+    public function store(): void
     {
-        //current: $data['start_time'] === '2025-10-18 11:00:00';
         //TODO: remake via EXCLUDE constraint (PostgreSql)
-        DB::transaction(function () use ($data) {
-            $startTime = Carbon::createFromTimeString($data['start_time']);
-            $endTime = $startTime->copy()
-                ->addMinutes(intval($data['option']['duration_minutes']) + self::BUFFER);
+        DB::transaction(function () {
 
-            if ($this->checkOverlapping($data, $startTime, $endTime)) {
-                throw new \Exception('Этот слот уже занят');
+            if ($this->checkOverlapping()) {
+                throw new SlotAlreadyBookedException();
             }
 
             Booking::create([
-                'service_id' => $data['option']['service_id'],
-                'service_duration_option_id' => $data['option']['id'],
-                'start_time' => $startTime,
-                'end_time' => $endTime,
-                'user_name' => $data['user_name'],
-                'user_phone_number' => $data['user_phone_number'],
+                'service_id' => $this->serviceId,
+                'service_duration_option_id' => $this->optionId,
+                'start_time' => $this->start,
+                'end_time' => $this->end,
+                'user_name' => $this->userName,
+                'user_phone_number' => $this->phoneNumber,
             ]);
         });
     }
 
-    private function checkOverlapping($data, $startTime, $endTime)
+    private function checkOverlapping(): bool
     {
-        return Booking::where('service_id', $data['option']['service_id'])
-            ->where('start_time', '<', $endTime)
-            ->where('end_time', '>', $startTime)
+        return Booking::ofService($this->serviceId)
+            ->where('start_time', '<', $this->end)
+            ->where('end_time', '>', $this->start)
             ->lockForUpdate()
             ->exists();
     }
 
-    public function getByTheDay($day)
+    public function getByTheWeek(Carbon $week_start, Carbon $week_end): Collection
+    {
+        return Booking::ofService($this->serviceId)
+            ->whereBetween('start_time', [$week_start, $week_end])
+            ->get();
+    }
+
+    public function getByTheDay(Carbon $day): Collection
     {
         return Booking::ofService($this->serviceId)
             ->whereDate('start_time', $day->toDateString())

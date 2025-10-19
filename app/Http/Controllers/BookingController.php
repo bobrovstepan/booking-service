@@ -2,21 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BookingStoreRequest;
 use App\Services\Booking\BookingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
-    public function __construct(
-        private BookingService $bookingService
-    ){}
 
-    public function store(Request $request)
+    public function store(BookingStoreRequest $request): JsonResponse
     {
-        $this->bookingService->store($request->input('data'));
+        (new BookingService($request->input('data')))->store();
 
         return response()->json([
             'success' => true,
-        ]);
+        ], 201);
     }
 }

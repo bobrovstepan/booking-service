@@ -5,10 +5,11 @@ namespace App\Services\Service;
 use App\Models\Booking;
 use App\Services\Booking\BookingService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 
 class ServiceDurationService
 {
-    private const BUFFER = 30;
+    private const BUFFER_MINUTES = 30;
     private const STEP_MINUTE = 30;
 
     private array $unavailableDays = [
@@ -19,33 +20,33 @@ class ServiceDurationService
     private const START_MINUTE = 0;
     private const END_HOUR = 20;
     private const END_MINUTE = 0;
-
-    private int $serviceId;
-
-    private int $durationId;
     private int $durationMinutes;
 
     private BookingService $bookingService;
 
     public function __construct($data)
     {
-        $this->serviceId = $data['option']['service_id'];
-        $this->durationId = $data['option']['id'];
-        $this->durationMinutes = intval($data['option']['duration_minutes']) + self::BUFFER;
+        $this->durationMinutes = intval($data['option']['duration_minutes']) + self::BUFFER_MINUTES;
 
-        $this->bookingService = new BookingService($this->serviceId);
+        $this->bookingService = new BookingService($data);
     }
 
     public function getAvailableDays(): array
     {
         $now = Carbon::now();
-        $weekStart = $now->copy()->startOfWeek();
+        $weekStart = $now->copy()->addDays(1)->startOfWeek();
 
         $availableDays = [];
+
+        $weeklyBookings = $this->bookingService
+            ->getByTheWeek($weekStart, $weekStart->copy()->addDays(7))
+            ->groupBy(fn($b) => substr($b->start_time, 0, 10));
+
 
         for ($i = 0; $i < 7; $i++) {
             $day = $weekStart->copy()->addDays($i);
             $dayName = $day->format('l');
+            $bookings = $weeklyBookings[$day->toDateString()] ?? new Collection();
 
             if (
                 in_array($dayName, $this->unavailableDays)
@@ -57,8 +58,6 @@ class ServiceDurationService
                 ];
                 continue;
             }
-
-            $bookings = $this->bookingService->getByTheDay($day);
 
             $slots = $this->generateSlots($day);
             $freeSlots = $this->filterSlots($slots, $bookings);
@@ -100,7 +99,7 @@ class ServiceDurationService
         return $slots;
     }
 
-    private function filterSlots(array $slots, $bookings): array
+    private function filterSlots(array $slots, Collection $bookings): array
     {
         return array_values(array_filter($slots, function ($slotStart) use ($bookings) {
             $slotStart = Carbon::parse($slotStart);

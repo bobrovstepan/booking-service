@@ -1,5 +1,4 @@
 <script setup>
-
 import {usePage} from "@inertiajs/vue3";
 import {ref} from "vue";
 import BookingModal from "@/Pages/Modals/BookingModal.vue";
@@ -12,9 +11,7 @@ const initBooking = (service) => {
     activeBookingService.value = service
     bookingProcess.value = true
 }
-
 </script>
-
 
 <template>
     <div class="services-list">
@@ -32,7 +29,6 @@ const initBooking = (service) => {
     </div>
 
     <BookingModal @booked="bookingProcess = false"  v-model:visible="bookingProcess" :service="activeBookingService"/>
-
     <Toast />
 </template>
 
